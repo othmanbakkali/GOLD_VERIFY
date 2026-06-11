@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import type { Punch, DocumentLegal } from '../types';
+import type { Punch, DocumentLegal, UserRole } from '../types';
 import { 
   ShieldAlert, 
   Plus, 
@@ -11,8 +11,12 @@ import {
   Award,
   CheckCircle,
   X,
-  UserCheck
+  UserCheck,
+  ShieldCheck,
+  Users,
+  Key
 } from 'lucide-react';
+
 
 export const AdminPanel: React.FC = () => {
   const { 
@@ -30,11 +34,17 @@ export const AdminPanel: React.FC = () => {
     addDocument,
     updateDocument,
     deleteDocument,
-    clearLogs
+    clearLogs,
+    permissionsGrid,
+    userAccounts,
+    updateRolePermissions,
+    addUserAccount,
+    updateUserAccount,
+    deleteUserAccount
   } = useApp();
 
-  // Selected admin action tab: 'punches' | 'docs' | 'logs'
-  const [adminTab, setAdminTab] = useState<'punches' | 'docs' | 'logs'>('punches');
+  // Selected admin action tab: 'punches' | 'docs' | 'logs' | 'security'
+  const [adminTab, setAdminTab] = useState<'punches' | 'docs' | 'logs' | 'security'>('punches');
 
   // Form states - Punch
   const [showPunchForm, setShowPunchForm] = useState(false);
@@ -58,8 +68,24 @@ export const AdminPanel: React.FC = () => {
   const [docContenu, setDocContenu] = useState('');
   const [docDate, setDocDate] = useState(new Date().toISOString().split('T')[0]);
 
-  // Check role permission
-  const isAuthorized = currentRole === 'ADMIN' || currentRole === 'EXPERT';
+  // Form states - User Account CRUD
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [userNom, setUserNom] = useState('');
+  const [userEmailInput, setUserEmailInput] = useState('');
+  const [userPassword, setUserPassword] = useState('');
+  const [userRoleInput, setUserRoleInput] = useState<UserRole>('AGENT');
+
+  // Check role permissions dynamically
+  const activePermissions = permissionsGrid.find(p => p.role === currentRole) || {
+    admin: false,
+    managePunches: false,
+    manageDocuments: false,
+    viewLogs: false,
+    managePermissions: false
+  };
+
+  const isAuthorized = activePermissions.admin;
 
   if (!isAuthorized) {
     return (
@@ -73,7 +99,7 @@ export const AdminPanel: React.FC = () => {
           <ShieldAlert size={40} style={{ color: '#EF4444', marginBottom: '15px' }} />
           <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#FCA5A5' }}>Accès Administrateur Restreint</h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '10px', lineHeight: '1.4' }}>
-            Vous êtes connecté en tant que <strong>{currentRole}</strong>. La modification du catalogue douanier est réservée aux Administrateurs et aux Experts.
+            Vous êtes connecté avec le profil <strong>{currentRole}</strong>. La console d'administration est réservée aux profils disposant de la permission d'accès administrative.
           </p>
           <div style={{ 
             marginTop: '20px', 
@@ -88,12 +114,13 @@ export const AdminPanel: React.FC = () => {
             justifyContent: 'center'
           }}>
             <UserCheck size={14} />
-            <span>Activez le rôle "Administrateur" ou "Expert" dans l'en-tête pour déverrouiller.</span>
+            <span>Veuillez vous connecter avec un compte autorisé pour déverrouiller.</span>
           </div>
         </div>
       </div>
     );
   }
+
 
   // --- CRUD PUNCH METHODS ---
   const handleOpenAddPunch = () => {
@@ -204,7 +231,7 @@ export const AdminPanel: React.FC = () => {
       </div>
 
       {/* Admin Subtabs Switcher */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '15px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
         <button 
           className={`chip ${adminTab === 'punches' ? 'active' : ''}`}
           onClick={() => setAdminTab('punches')}
@@ -221,14 +248,26 @@ export const AdminPanel: React.FC = () => {
           <FileText size={12} style={{ marginRight: '4px' }} />
           Lois
         </button>
-        <button 
-          className={`chip ${adminTab === 'logs' ? 'active' : ''}`}
-          onClick={() => setAdminTab('logs')}
-          style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-        >
-          <History size={12} style={{ marginRight: '4px' }} />
-          Logs d'Audit
-        </button>
+        {activePermissions.viewLogs && (
+          <button 
+            className={`chip ${adminTab === 'logs' ? 'active' : ''}`}
+            onClick={() => setAdminTab('logs')}
+            style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+          >
+            <History size={12} style={{ marginRight: '4px' }} />
+            Logs d'Audit
+          </button>
+        )}
+        {activePermissions.managePermissions && (
+          <button 
+            className={`chip ${adminTab === 'security' ? 'active' : ''}`}
+            onClick={() => setAdminTab('security')}
+            style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+          >
+            <ShieldCheck size={12} style={{ marginRight: '4px' }} />
+            Sécurité &amp; Accès
+          </button>
+        )}
       </div>
 
       {/* --- PANEL 1 : HALLMARKS CRUD --- */}
@@ -236,10 +275,12 @@ export const AdminPanel: React.FC = () => {
         <>
           {!showPunchForm ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button className="btn btn-emerald" onClick={handleOpenAddPunch} style={{ width: '100%' }}>
-                <Plus size={16} />
-                <span>Nouveau Poinçon</span>
-              </button>
+              {activePermissions.managePunches && (
+                <button className="btn btn-emerald" onClick={handleOpenAddPunch} style={{ width: '100%' }}>
+                  <Plus size={16} />
+                  <span>Nouveau Poinçon</span>
+                </button>
+              )}
 
               <div className="glass-panel" style={{ padding: '0px', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
@@ -248,7 +289,9 @@ export const AdminPanel: React.FC = () => {
                       <th style={{ padding: '12px' }}>Réf</th>
                       <th style={{ padding: '12px' }}>Nom</th>
                       <th style={{ padding: '12px' }}>Métal</th>
-                      <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
+                      {activePermissions.managePunches && (
+                        <th style={{ padding: '12px', textAlign: 'right' }}>Actions</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -265,30 +308,32 @@ export const AdminPanel: React.FC = () => {
                             {!p.actif && <span style={{ fontSize: '0.65rem', color: '#EF4444' }}>(Désactivé)</span>}
                           </td>
                           <td style={{ padding: '12px' }}>{metalObj?.nom}</td>
-                          <td style={{ padding: '12px', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                              <button 
-                                className="btn btn-secondary" 
-                                style={{ padding: '5px', borderRadius: '8px' }}
-                                onClick={() => handleOpenEditPunch(p)}
-                              >
-                                <Edit size={12} />
-                              </button>
-                              {p.actif && (
+                          {activePermissions.managePunches && (
+                            <td style={{ padding: '12px', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                                 <button 
                                   className="btn btn-secondary" 
-                                  style={{ padding: '5px', borderRadius: '8px', color: '#EF4444' }}
-                                  onClick={() => {
-                                    if (confirm(`Désactiver le poinçon ${p.nom} ?`)) {
-                                      deletePunch(p.id);
-                                    }
-                                  }}
+                                  style={{ padding: '5px', borderRadius: '8px' }}
+                                  onClick={() => handleOpenEditPunch(p)}
                                 >
-                                  <Trash2 size={12} />
+                                  <Edit size={12} />
                                 </button>
-                              )}
-                            </div>
-                          </td>
+                                {p.actif && (
+                                  <button 
+                                    className="btn btn-secondary" 
+                                    style={{ padding: '5px', borderRadius: '8px', color: '#EF4444' }}
+                                    onClick={() => {
+                                      if (confirm(`Désactiver le poinçon ${p.nom} ?`)) {
+                                        deletePunch(p.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       );
                     })}
@@ -399,10 +444,12 @@ export const AdminPanel: React.FC = () => {
         <>
           {!showDocForm ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button className="btn btn-emerald" onClick={handleOpenAddDoc} style={{ width: '100%' }}>
-                <Plus size={16} />
-                <span>Nouveau Texte Légal</span>
-              </button>
+              {activePermissions.manageDocuments && (
+                <button className="btn btn-emerald" onClick={handleOpenAddDoc} style={{ width: '100%' }}>
+                  <Plus size={16} />
+                  <span>Nouveau Texte Légal</span>
+                </button>
+              )}
 
               {documents.map((doc) => (
                 <div key={doc.id} className="glass-panel" style={{ padding: '15px' }}>
@@ -414,18 +461,20 @@ export const AdminPanel: React.FC = () => {
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{doc.description}</p>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => handleOpenEditDoc(doc)}>
-                        <Edit size={12} />
-                      </button>
-                      <button className="btn btn-secondary" style={{ padding: '6px', color: '#EF4444' }} onClick={() => {
-                        if (confirm(`Supprimer définitivement le document : ${doc.titre} ?`)) {
-                          deleteDocument(doc.id);
-                        }
-                      }}>
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                    {activePermissions.manageDocuments && (
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn btn-secondary" style={{ padding: '6px' }} onClick={() => handleOpenEditDoc(doc)}>
+                          <Edit size={12} />
+                        </button>
+                        <button className="btn btn-secondary" style={{ padding: '6px', color: '#EF4444' }} onClick={() => {
+                          if (confirm(`Supprimer définitivement le document : ${doc.titre} ?`)) {
+                            deleteDocument(doc.id);
+                          }
+                        }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -474,7 +523,7 @@ export const AdminPanel: React.FC = () => {
       )}
 
       {/* --- PANEL 3 : AUDIT LOGS VIEW --- */}
-      {adminTab === 'logs' && (
+      {adminTab === 'logs' && activePermissions.viewLogs && (
         <div className="glass-panel" style={{ padding: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <h4 style={{ fontSize: '0.9rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -512,7 +561,9 @@ export const AdminPanel: React.FC = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                     <span style={{ 
                       fontWeight: 700, 
-                      color: log.action === 'CREATE' ? 'var(--emerald-light)' : log.action === 'UPDATE' ? 'var(--gold-primary)' : '#EF4444'
+                      color: log.action === 'CREATE' ? 'var(--emerald-light)' : 
+                             log.action === 'UPDATE' ? 'var(--gold-primary)' : 
+                             log.action === 'DELETE' ? '#EF4444' : 'var(--text-primary)'
                     }}>
                       {log.action} • {log.entityType} ({log.entityName})
                     </span>
@@ -527,6 +578,211 @@ export const AdminPanel: React.FC = () => {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- PANEL 4 : SECURITY & ACCESS CONTROL --- */}
+      {adminTab === 'security' && activePermissions.managePermissions && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Permissions Matrix */}
+          <div className="glass-panel" style={{ padding: '15px', overflowX: 'auto' }}>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--gold-primary)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Key size={16} />
+              Configuration des Accès &amp; Rôles
+            </h4>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+              Cochez les droits d'accès et d'action autorisés pour chaque profil utilisateur en temps réel.
+            </p>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border-glass)', color: 'var(--text-secondary)' }}>
+                  <th style={{ padding: '8px' }}>Droit / Permission</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>ADMIN</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>EXPERT</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>AGENT</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>VENDEUR</th>
+                  <th style={{ padding: '8px', textAlign: 'center' }}>PUBLIC</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { key: 'dashboard', label: 'Accès Accueil (Dashboard)' },
+                  { key: 'catalog', label: 'Accès Catalogue' },
+                  { key: 'scanner', label: 'Accès Scanner IA' },
+                  { key: 'map', label: 'Accès Carte Bureaux' },
+                  { key: 'admin', label: 'Accès Console Admin' },
+                  { key: 'managePunches', label: 'Modifier Poinçons (CRUD)' },
+                  { key: 'manageDocuments', label: 'Modifier Textes Lois (CRUD)' },
+                  { key: 'viewLogs', label: 'Visualiser Logs d\'Audit' },
+                  { key: 'managePermissions', label: 'Gérer Permissions (Sécurité)' }
+                ].map((perm) => (
+                  <tr key={perm.key} style={{ borderBottom: '1px solid var(--border-glass)' }}>
+                    <td style={{ padding: '8px 4px', fontWeight: 600 }}>{perm.label}</td>
+                    {['ADMIN', 'EXPERT', 'AGENT', 'VENDEUR', 'PUBLIC'].map((r) => {
+                      const roleObj = permissionsGrid.find(p => p.role === r);
+                      const isChecked = roleObj ? (roleObj as any)[perm.key] : false;
+                      const isDisabled = r === 'ADMIN' && perm.key === 'managePermissions';
+                      
+                      return (
+                        <td key={r} style={{ padding: '8px', textAlign: 'center' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={isChecked}
+                            disabled={isDisabled}
+                            onChange={(e) => {
+                              updateRolePermissions(r as UserRole, { [perm.key]: e.target.checked });
+                            }}
+                            style={{ cursor: isDisabled ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* User Accounts Management */}
+          <div className="glass-panel" style={{ padding: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--gold-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Users size={16} />
+                Comptes Utilisateurs
+              </h4>
+              {!showUserForm && (
+                <button 
+                  className="btn btn-emerald" 
+                  style={{ padding: '6px 12px', fontSize: '0.7rem' }}
+                  onClick={() => {
+                    setEditingUserId(null);
+                    setUserNom('');
+                    setUserEmailInput('');
+                    setUserPassword('');
+                    setUserRoleInput('AGENT');
+                    setShowUserForm(true);
+                  }}
+                >
+                  <Plus size={12} />
+                  Nouveau Compte
+                </button>
+              )}
+            </div>
+
+            {showUserForm ? (
+              /* User Form */
+              <div style={{ background: 'var(--bg-primary)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-glass)', marginBottom: '15px' }}>
+                <h5 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '10px' }}>
+                  {editingUserId ? 'Modifier l\'utilisateur' : 'Créer un utilisateur'}
+                </h5>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!userNom || !userEmailInput || (!editingUserId && !userPassword)) return;
+                  
+                  const payload = {
+                    nom: userNom,
+                    email: userEmailInput,
+                    role: userRoleInput,
+                    ...(userPassword ? { password: userPassword } : {})
+                  };
+
+                  if (editingUserId) {
+                    updateUserAccount(editingUserId, payload);
+                  } else {
+                    addUserAccount(payload);
+                  }
+                  setShowUserForm(false);
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: '0.7rem' }}>Nom Complet</label>
+                      <input type="text" value={userNom} onChange={e => setUserNom(e.target.value)} required className="input-field" style={{ padding: '8px 12px', fontSize: '0.75rem' }} />
+                    </div>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: '0.7rem' }}>Email</label>
+                      <input type="email" value={userEmailInput} onChange={e => setUserEmailInput(e.target.value)} required className="input-field" style={{ padding: '8px 12px', fontSize: '0.75rem' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: '0.7rem' }}>Mot de passe {editingUserId && '(optionnel)'}</label>
+                      <input type="password" value={userPassword} onChange={e => setUserPassword(e.target.value)} required={!editingUserId} className="input-field" style={{ padding: '8px 12px', fontSize: '0.75rem' }} />
+                    </div>
+                    <div className="input-group">
+                      <label className="input-label" style={{ fontSize: '0.7rem' }}>Rôle / Profil</label>
+                      <select value={userRoleInput} onChange={e => setUserRoleInput(e.target.value as UserRole)} className="input-field select-field" style={{ padding: '8px 12px', fontSize: '0.75rem' }}>
+                        <option value="ADMIN">Administrateur</option>
+                        <option value="EXPERT">Expert</option>
+                        <option value="AGENT">Agent</option>
+                        <option value="VENDEUR">Vendeur</option>
+                        <option value="PUBLIC">Public</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '10px' }}>
+                    <button type="submit" className="btn btn-emerald" style={{ padding: '6px 12px', fontSize: '0.75rem' }}>Enregistrer</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowUserForm(false)} style={{ padding: '6px 12px', fontSize: '0.75rem' }}>Annuler</button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              /* Accounts List */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto' }}>
+                {userAccounts.map((u) => (
+                  <div key={u.id} style={{ 
+                    padding: '10px', 
+                    borderRadius: '12px', 
+                    border: '1px solid var(--border-glass)',
+                    background: 'var(--bg-primary)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    fontSize: '0.78rem'
+                  }}>
+                    <div>
+                      <div style={{ fontWeight: 700 }}>{u.nom}</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', marginTop: '2px' }}>
+                        {u.email} • <strong style={{ color: 'var(--gold-primary)', fontSize: '0.68rem' }}>{u.role}</strong>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        className="btn btn-secondary" 
+                        style={{ padding: '5px', borderRadius: '8px' }}
+                        onClick={() => {
+                          setEditingUserId(u.id);
+                          setUserNom(u.nom);
+                          setUserEmailInput(u.email);
+                          setUserPassword('');
+                          setUserRoleInput(u.role);
+                          setShowUserForm(true);
+                        }}
+                      >
+                        <Edit size={12} />
+                      </button>
+                      <button 
+                        className="btn btn-secondary" 
+                        style={{ padding: '5px', borderRadius: '8px', color: '#EF4444' }}
+                        onClick={() => {
+                          if (userAccounts.length === 1) {
+                            alert('Impossible de supprimer le dernier compte.');
+                            return;
+                          }
+                          if (confirm(`Supprimer définitivement le compte de ${u.nom} ?`)) {
+                            deleteUserAccount(u.id);
+                          }
+                        }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

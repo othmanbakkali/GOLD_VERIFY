@@ -51,21 +51,42 @@ export interface BureauGarantie {
 
 export interface ActivityLog {
   id: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE';
-  entityType: 'POINCON' | 'DOCUMENT';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'CONFIG';
+  entityType: 'POINCON' | 'DOCUMENT' | 'SECURITE';
   entityId: string;
   entityName: string;
   timestamp: string;
   details: string;
   userEmail: string;
-  userRole: 'ADMIN' | 'EXPERT' | 'AGENT' | 'PUBLIC';
+  userRole: UserRole;
 }
 
-export type UserRole = 'ADMIN' | 'EXPERT' | 'AGENT' | 'PUBLIC';
+export type UserRole = 'ADMIN' | 'EXPERT' | 'AGENT' | 'VENDEUR' | 'PUBLIC';
 
 export interface User {
   id: string;
   nom: string;
   email: string;
   role: UserRole;
+}
+
+export interface UserAccount {
+  id: string;
+  nom: string;
+  email: string;
+  role: UserRole;
+  password?: string;
+}
+
+export interface RolePermissions {
+  role: UserRole;
+  dashboard: boolean;
+  catalog: boolean;
+  scanner: boolean;
+  map: boolean;
+  admin: boolean;
+  managePunches: boolean;
+  manageDocuments: boolean;
+  viewLogs: boolean;
+  managePermissions: boolean;
 }

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Punch, Metal, Titre, Categorie, DocumentLegal, BureauGarantie, ActivityLog, UserRole } from '../types';
+import type { Punch, Metal, Titre, Categorie, DocumentLegal, BureauGarantie, ActivityLog, UserRole, UserAccount, RolePermissions } from '../types';
 import { initialMetals, initialCategories, initialTitres, initialBureaux, initialDocumentsLegaux, initialPunches } from '../data/initialData';
 
 interface AppContextProps {
@@ -14,6 +14,17 @@ interface AppContextProps {
   userEmail: string;
   setRole: (role: UserRole) => void;
   setUserEmail: (email: string) => void;
+
+  // Authentication & Dynamic access control
+  userAccounts: UserAccount[];
+  permissionsGrid: RolePermissions[];
+  currentUser: UserAccount | null;
+  login: (email: string, password: string) => boolean;
+  logout: () => void;
+  updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => void;
+  addUserAccount: (user: Omit<UserAccount, 'id'>) => void;
+  updateUserAccount: (id: string, user: Partial<UserAccount>) => void;
+  deleteUserAccount: (id: string) => void;
   
   // Punch CRUD
   addPunch: (punch: Omit<Punch, 'id' | 'actif'>) => void;
@@ -30,6 +41,76 @@ interface AppContextProps {
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
+
+const defaultAccounts: UserAccount[] = [
+  { id: 'u-admin', nom: 'Chérif Alami', email: 'admin@douane.gov.ma', password: 'admin123', role: 'ADMIN' },
+  { id: 'u-expert', nom: 'Meryem Benjelloun', email: 'expert@douane.gov.ma', password: 'expert123', role: 'EXPERT' },
+  { id: 'u-agent', nom: 'Youssef Naciri', email: 'agent@douane.gov.ma', password: 'agent123', role: 'AGENT' },
+  { id: 'u-vendeur', nom: 'Bijouterie Royale', email: 'vendeur@bijouterie.ma', password: 'vendeur123', role: 'VENDEUR' }
+];
+
+const defaultPermissions: RolePermissions[] = [
+  {
+    role: 'ADMIN',
+    dashboard: true,
+    catalog: true,
+    scanner: true,
+    map: true,
+    admin: true,
+    managePunches: true,
+    manageDocuments: true,
+    viewLogs: true,
+    managePermissions: true
+  },
+  {
+    role: 'EXPERT',
+    dashboard: true,
+    catalog: true,
+    scanner: true,
+    map: true,
+    admin: true,
+    managePunches: true,
+    manageDocuments: true,
+    viewLogs: true,
+    managePermissions: false
+  },
+  {
+    role: 'AGENT',
+    dashboard: true,
+    catalog: true,
+    scanner: true,
+    map: true,
+    admin: false,
+    managePunches: false,
+    manageDocuments: false,
+    viewLogs: false,
+    managePermissions: false
+  },
+  {
+    role: 'VENDEUR',
+    dashboard: true,
+    catalog: true,
+    scanner: true,
+    map: true,
+    admin: false,
+    managePunches: false,
+    manageDocuments: false,
+    viewLogs: false,
+    managePermissions: false
+  },
+  {
+    role: 'PUBLIC',
+    dashboard: true,
+    catalog: true,
+    scanner: true,
+    map: true,
+    admin: false,
+    managePunches: false,
+    manageDocuments: false,
+    viewLogs: false,
+    managePermissions: false
+  }
+];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial state from LocalStorage or seed files
@@ -48,15 +129,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return local ? JSON.parse(local) : [];
   });
 
-  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
-    const local = localStorage.getItem('gp_role');
-    return (local as UserRole) || 'PUBLIC';
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    const local = localStorage.getItem('gp_current_user');
+    return local ? JSON.parse(local) : null;
   });
 
-  const [userEmail, setUserEmailState] = useState<string>(() => {
-    const local = localStorage.getItem('gp_email');
-    return local || 'visiteur@garantie.gov.ma';
+  const [userAccounts, setUserAccounts] = useState<UserAccount[]>(() => {
+    const local = localStorage.getItem('gp_user_accounts');
+    return local ? JSON.parse(local) : defaultAccounts;
   });
+
+  const [permissionsGrid, setPermissionsGrid] = useState<RolePermissions[]>(() => {
+    const local = localStorage.getItem('gp_permissions_grid');
+    return local ? JSON.parse(local) : defaultPermissions;
+  });
+
+  // Derived states for compatibility
+  const currentRole = currentUser?.role || 'PUBLIC';
+  const userEmail = currentUser?.email || 'visiteur@garantie.gov.ma';
 
   // Keep static lists (read-only for simplicity in this version, but queryable)
   const [metals] = useState<Metal[]>(initialMetals);
@@ -78,25 +168,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [logs]);
 
   useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('gp_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('gp_current_user');
+    }
     localStorage.setItem('gp_role', currentRole);
-  }, [currentRole]);
+    localStorage.setItem('gp_email', userEmail);
+  }, [currentUser, currentRole, userEmail]);
 
   useEffect(() => {
-    localStorage.setItem('gp_email', userEmail);
-  }, [userEmail]);
+    localStorage.setItem('gp_user_accounts', JSON.stringify(userAccounts));
+  }, [userAccounts]);
+
+  useEffect(() => {
+    localStorage.setItem('gp_permissions_grid', JSON.stringify(permissionsGrid));
+  }, [permissionsGrid]);
 
   const setRole = (role: UserRole) => {
-    setCurrentRole(role);
-    // Set a default email according to role
-    if (role === 'ADMIN') setUserEmailState('admin.garantie@douane.gov.ma');
-    else if (role === 'EXPERT') setUserEmailState('expert.terrain@douane.gov.ma');
-    else if (role === 'AGENT') setUserEmailState('agent.casablanca@douane.gov.ma');
-    else setUserEmailState('visiteur@garantie.gov.ma');
+    const account = userAccounts.find(u => u.role === role);
+    if (account) {
+      setCurrentUser(account);
+      createLog('LOGIN', 'SECURITE', account.id, account.nom, `Simulation de connexion par changement de rôle.`);
+    } else if (role === 'PUBLIC') {
+      setCurrentUser(null);
+      createLog('LOGOUT', 'SECURITE', 'public', 'Visiteur', `Déconnexion vers le mode public.`);
+    }
   };
 
   const setUserEmail = (email: string) => {
-    setUserEmailState(email);
+    if (currentUser) {
+      setCurrentUser(prev => prev ? { ...prev, email } : null);
+    }
   };
+
 
   // Log helper
   const createLog = (
@@ -228,6 +333,122 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLogs([]);
   };
 
+  const login = (email: string, password: string): boolean => {
+    const account = userAccounts.find(
+      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    );
+    if (account) {
+      setCurrentUser(account);
+      const logDetails = `Connexion de l'utilisateur ${account.nom} (${account.role}).`;
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        action: 'LOGIN',
+        entityType: 'SECURITE',
+        entityId: account.id,
+        entityName: account.nom,
+        timestamp: new Date().toISOString(),
+        details: logDetails,
+        userEmail: account.email,
+        userRole: account.role
+      };
+      setLogs(prev => [newLog, ...prev]);
+      return true;
+    }
+    return false;
+  };
+
+  const logout = () => {
+    if (currentUser) {
+      const logDetails = `Déconnexion de l'utilisateur ${currentUser.nom}.`;
+      const newLog: ActivityLog = {
+        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        action: 'LOGOUT',
+        entityType: 'SECURITE',
+        entityId: currentUser.id,
+        entityName: currentUser.nom,
+        timestamp: new Date().toISOString(),
+        details: logDetails,
+        userEmail: currentUser.email,
+        userRole: currentUser.role
+      };
+      setLogs(prev => [newLog, ...prev]);
+    }
+    setCurrentUser(null);
+  };
+
+  const updateRolePermissions = (role: UserRole, updatedPerms: Partial<RolePermissions>) => {
+    setPermissionsGrid(prev =>
+      prev.map(p => {
+        if (p.role === role) {
+          const merged = { ...p, ...updatedPerms };
+          createLog(
+            'CONFIG',
+            'SECURITE',
+            role,
+            `Rôle ${role}`,
+            `Modification des permissions de sécurité pour le rôle ${role}.`
+          );
+          return merged;
+        }
+        return p;
+      })
+    );
+  };
+
+  const addUserAccount = (newUserData: Omit<UserAccount, 'id'>) => {
+    const newId = `u-${Date.now()}`;
+    const newUser: UserAccount = {
+      ...newUserData,
+      id: newId
+    };
+    setUserAccounts(prev => [...prev, newUser]);
+    createLog(
+      'CONFIG',
+      'SECURITE',
+      newId,
+      newUser.nom,
+      `Création du compte utilisateur ${newUser.nom} (${newUser.role}, ${newUser.email}).`
+    );
+  };
+
+  const updateUserAccount = (id: string, updatedFields: Partial<UserAccount>) => {
+    setUserAccounts(prev =>
+      prev.map(u => {
+        if (u.id === id) {
+          const merged = { ...u, ...updatedFields };
+          createLog(
+            'CONFIG',
+            'SECURITE',
+            id,
+            merged.nom,
+            `Mise à jour du compte ${merged.nom} (${Object.keys(updatedFields).join(', ')}).`
+          );
+          if (currentUser && currentUser.id === id) {
+            setCurrentUser(merged);
+          }
+          return merged;
+        }
+        return u;
+      })
+    );
+  };
+
+  const deleteUserAccount = (id: string) => {
+    const userToDelete = userAccounts.find(u => u.id === id);
+    if (!userToDelete) return;
+    setUserAccounts(prev => prev.filter(u => u.id !== id));
+    createLog(
+      'CONFIG',
+      'SECURITE',
+      id,
+      userToDelete.nom,
+      `Suppression définitive du compte utilisateur ${userToDelete.nom}.`
+    );
+    if (currentUser && currentUser.id === id) {
+      setCurrentUser(null);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -242,6 +463,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userEmail,
         setRole,
         setUserEmail,
+        userAccounts,
+        permissionsGrid,
+        currentUser,
+        login,
+        logout,
+        updateRolePermissions,
+        addUserAccount,
+        updateUserAccount,
+        deleteUserAccount,
         addPunch,
         updatePunch,
         deletePunch,
