@@ -47,6 +47,9 @@ export const Scanner: React.FC = () => {
     setDetectionResult(null);
     
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("L'API de la caméra n'est pas disponible (requiert HTTPS).");
+      }
       const constraints = {
         video: { facingMode: 'environment' } // Prefer back camera on mobiles
       };
@@ -55,9 +58,13 @@ export const Scanner: React.FC = () => {
         videoRef.current.srcObject = stream;
         setStreamActive(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Camera access failed:', err);
-      setCameraError("Impossible d'accéder à l'appareil photo. Vous pouvez téléverser un fichier ou utiliser les démos.");
+      if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        setCameraError("L'appareil photo nécessite une connexion HTTPS sécurisée (actuellement en HTTP). Veuillez tester sur la version publiée en ligne (GitHub Pages) ou utiliser le bouton 'Téléverser' pour prendre une photo.");
+      } else {
+        setCameraError("Impossible d'accéder à l'appareil photo. Assurez-vous d'avoir autorisé l'accès dans les paramètres du navigateur ou utilisez le bouton 'Téléverser' pour prendre une photo directement.");
+      }
     }
   };
 
