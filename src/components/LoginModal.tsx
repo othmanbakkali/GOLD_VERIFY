@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Mail, Lock, X, ShieldCheck, Sparkles, AlertCircle } from 'lucide-react';
+import { Mail, Lock, X, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface LoginModalProps {
   onClose: () => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
-  const { login, userAccounts } = useApp();
+  const { login } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,20 +20,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
       onClose();
     } else {
       setError('Identifiants incorrects. Veuillez réessayer.');
-    }
-  };
-
-  // Pre-fill helper for reviews/testing
-  const handleQuickLogin = (role: string) => {
-    const account = userAccounts.find(u => u.role === role);
-    if (account) {
-      setEmail(account.email);
-      setPassword(account.password || '');
-      // Automatically log in
-      const success = login(account.email, account.password || '');
-      if (success) {
-        onClose();
-      }
     }
   };
 
@@ -131,53 +117,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onClose }) => {
             Se connecter
           </button>
         </form>
-
-        <div style={{ marginTop: '25px', borderTop: '1px solid var(--border-glass)', paddingTop: '20px' }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
-            gap: '5px', 
-            fontSize: '0.7rem', 
-            color: 'var(--gold-primary)',
-            fontWeight: 600,
-            marginBottom: '10px'
-          }}>
-            <Sparkles size={12} />
-            <span>ACCÈS RAPIDE DÉMO</span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => handleQuickLogin('ADMIN')}
-              style={{ fontSize: '0.7rem', padding: '8px 4px', borderRadius: '8px' }}
-            >
-              Admin
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => handleQuickLogin('EXPERT')}
-              style={{ fontSize: '0.7rem', padding: '8px 4px', borderRadius: '8px' }}
-            >
-              Expert
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => handleQuickLogin('AGENT')}
-              style={{ fontSize: '0.7rem', padding: '8px 4px', borderRadius: '8px' }}
-            >
-              Agent
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => handleQuickLogin('VENDEUR')}
-              style={{ fontSize: '0.7rem', padding: '8px 4px', borderRadius: '8px', color: 'var(--gold-primary)' }}
-            >
-              Vendeur
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );
