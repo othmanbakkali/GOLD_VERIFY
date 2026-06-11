@@ -113,6 +113,8 @@ const defaultPermissions: RolePermissions[] = [
 ];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
   // Load initial state from LocalStorage or seed files
   const [punches, setPunches] = useState<Punch[]>(() => {
     const local = localStorage.getItem('gp_punches');
@@ -153,6 +155,68 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [titres] = useState<Titre[]>(initialTitres);
   const [categories] = useState<Categorie[]>(initialCategories);
   const [bureaux] = useState<BureauGarantie[]>(initialBureaux);
+
+  // Sync state from backend on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const resPunches = await fetch(`${API_URL}/punches`);
+        if (resPunches.ok) {
+          const data = await resPunches.json();
+          setPunches(data);
+          localStorage.setItem('gp_punches', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch punches, using local cache", err);
+      }
+
+      try {
+        const resDocs = await fetch(`${API_URL}/documents`);
+        if (resDocs.ok) {
+          const data = await resDocs.json();
+          setDocuments(data);
+          localStorage.setItem('gp_documents', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch documents, using local cache", err);
+      }
+
+      try {
+        const resUsers = await fetch(`${API_URL}/users`);
+        if (resUsers.ok) {
+          const data = await resUsers.json();
+          setUserAccounts(data);
+          localStorage.setItem('gp_user_accounts', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch user accounts, using local cache", err);
+      }
+
+      try {
+        const resPerms = await fetch(`${API_URL}/permissions`);
+        if (resPerms.ok) {
+          const data = await resPerms.json();
+          setPermissionsGrid(data);
+          localStorage.setItem('gp_permissions_grid', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch permissions, using local cache", err);
+      }
+
+      try {
+        const resLogs = await fetch(`${API_URL}/logs`);
+        if (resLogs.ok) {
+          const data = await resLogs.json();
+          setLogs(data);
+          localStorage.setItem('gp_logs', JSON.stringify(data));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch logs, using local cache", err);
+      }
+    };
+
+    loadData();
+  }, [API_URL]);
 
   // Sync state to LocalStorage
   useEffect(() => {
@@ -202,9 +266,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-
   // Log helper
-  const createLog = (
+  const createLog = async (
     action: ActivityLog['action'],
     entityType: ActivityLog['entityType'],
     entityId: string,
@@ -223,10 +286,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole: currentRole
     };
     setLogs(prev => [newLog, ...prev]);
+
+    try {
+      await fetch(`${API_URL}/logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLog)
+      });
+    } catch (err) {
+      console.warn("Failed to sync log to server", err);
+    }
   };
 
   // Punch Operations
-  const addPunch = (newPunchData: Omit<Punch, 'id' | 'actif'>) => {
+  const addPunch = async (newPunchData: Omit<Punch, 'id' | 'actif'>) => {
     const newId = `p-${Date.now()}`;
     const newPunch: Punch = {
       ...newPunchData,
@@ -241,9 +314,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newPunch.nom,
       `Ajout du poinçon référencé ${newPunch.reference} (${newPunch.nom}).`
     );
+
+    try {
+      await fetch(`${API_URL}/punches`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPunch)
+      });
+    } catch (err) {
+      console.warn("Failed to sync punch to server", err);
+    }
   };
 
-  const updatePunch = (id: string, updatedFields: Partial<Punch>) => {
+  const updatePunch = async (id: string, updatedFields: Partial<Punch>) => {
     setPunches(prev =>
       prev.map(p => {
         if (p.id === id) {
@@ -260,13 +343,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return p;
       })
     );
+
+    try {
+      await fetch(`${API_URL}/punches/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFields)
+      });
+    } catch (err) {
+      console.warn("Failed to sync updated punch to server", err);
+    }
   };
 
-  const deletePunch = (id: string) => {
+  const deletePunch = async (id: string) => {
     const punchToDelete = punches.find(p => p.id === id);
     if (!punchToDelete) return;
     
-    // Hard delete or Soft delete (we do soft delete by setting actif=false)
     setPunches(prev =>
       prev.map(p => (p.id === id ? { ...p, actif: false } : p))
     );
@@ -277,10 +369,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       punchToDelete.nom,
       `Désactivation du poinçon ${punchToDelete.nom} de la galerie active.`
     );
+
+    try {
+      await fetch(`${API_URL}/punches/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn("Failed to sync deleted punch to server", err);
+    }
   };
 
   // Document Operations
-  const addDocument = (newDocData: Omit<DocumentLegal, 'id'>) => {
+  const addDocument = async (newDocData: Omit<DocumentLegal, 'id'>) => {
     const newId = `doc-${Date.now()}`;
     const newDoc: DocumentLegal = {
       ...newDocData,
@@ -294,9 +394,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newDoc.titre,
       `Ajout du document légal : ${newDoc.titre}.`
     );
+
+    try {
+      await fetch(`${API_URL}/documents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDoc)
+      });
+    } catch (err) {
+      console.warn("Failed to sync document to server", err);
+    }
   };
 
-  const updateDocument = (id: string, updatedFields: Partial<DocumentLegal>) => {
+  const updateDocument = async (id: string, updatedFields: Partial<DocumentLegal>) => {
     setDocuments(prev =>
       prev.map(d => {
         if (d.id === id) {
@@ -313,9 +423,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return d;
       })
     );
+
+    try {
+      await fetch(`${API_URL}/documents/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFields)
+      });
+    } catch (err) {
+      console.warn("Failed to sync updated document to server", err);
+    }
   };
 
-  const deleteDocument = (id: string) => {
+  const deleteDocument = async (id: string) => {
     const docToDelete = documents.find(d => d.id === id);
     if (!docToDelete) return;
 
@@ -327,10 +447,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       docToDelete.titre,
       `Suppression définitive du document légal : ${docToDelete.titre}.`
     );
+
+    try {
+      await fetch(`${API_URL}/documents/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn("Failed to sync deleted document to server", err);
+    }
   };
 
-  const clearLogs = () => {
+  const clearLogs = async () => {
     setLogs([]);
+    try {
+      await fetch(`${API_URL}/logs`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn("Failed to sync cleared logs to server", err);
+    }
   };
 
   const login = (email: string, password: string): boolean => {
@@ -340,18 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (account) {
       setCurrentUser(account);
       const logDetails = `Connexion de l'utilisateur ${account.nom} (${account.role}).`;
-      const newLog: ActivityLog = {
-        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        action: 'LOGIN',
-        entityType: 'SECURITE',
-        entityId: account.id,
-        entityName: account.nom,
-        timestamp: new Date().toISOString(),
-        details: logDetails,
-        userEmail: account.email,
-        userRole: account.role
-      };
-      setLogs(prev => [newLog, ...prev]);
+      createLog('LOGIN', 'SECURITE', account.id, account.nom, logDetails);
       return true;
     }
     return false;
@@ -360,23 +484,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const logout = () => {
     if (currentUser) {
       const logDetails = `Déconnexion de l'utilisateur ${currentUser.nom}.`;
-      const newLog: ActivityLog = {
-        id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        action: 'LOGOUT',
-        entityType: 'SECURITE',
-        entityId: currentUser.id,
-        entityName: currentUser.nom,
-        timestamp: new Date().toISOString(),
-        details: logDetails,
-        userEmail: currentUser.email,
-        userRole: currentUser.role
-      };
-      setLogs(prev => [newLog, ...prev]);
+      createLog('LOGOUT', 'SECURITE', currentUser.id, currentUser.nom, logDetails);
     }
     setCurrentUser(null);
   };
 
-  const updateRolePermissions = (role: UserRole, updatedPerms: Partial<RolePermissions>) => {
+  const updateRolePermissions = async (role: UserRole, updatedPerms: Partial<RolePermissions>) => {
     setPermissionsGrid(prev =>
       prev.map(p => {
         if (p.role === role) {
@@ -393,9 +506,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return p;
       })
     );
+
+    try {
+      await fetch(`${API_URL}/permissions/${role}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedPerms)
+      });
+    } catch (err) {
+      console.warn("Failed to sync permissions to server", err);
+    }
   };
 
-  const addUserAccount = (newUserData: Omit<UserAccount, 'id'>) => {
+  const addUserAccount = async (newUserData: Omit<UserAccount, 'id'>) => {
     const newId = `u-${Date.now()}`;
     const newUser: UserAccount = {
       ...newUserData,
@@ -409,9 +532,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newUser.nom,
       `Création du compte utilisateur ${newUser.nom} (${newUser.role}, ${newUser.email}).`
     );
+
+    try {
+      await fetch(`${API_URL}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newUser)
+      });
+    } catch (err) {
+      console.warn("Failed to sync new user account to server", err);
+    }
   };
 
-  const updateUserAccount = (id: string, updatedFields: Partial<UserAccount>) => {
+  const updateUserAccount = async (id: string, updatedFields: Partial<UserAccount>) => {
     setUserAccounts(prev =>
       prev.map(u => {
         if (u.id === id) {
@@ -431,9 +564,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return u;
       })
     );
+
+    try {
+      await fetch(`${API_URL}/users/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedFields)
+      });
+    } catch (err) {
+      console.warn("Failed to sync updated user account to server", err);
+    }
   };
 
-  const deleteUserAccount = (id: string) => {
+  const deleteUserAccount = async (id: string) => {
     const userToDelete = userAccounts.find(u => u.id === id);
     if (!userToDelete) return;
     setUserAccounts(prev => prev.filter(u => u.id !== id));
@@ -446,6 +589,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
     if (currentUser && currentUser.id === id) {
       setCurrentUser(null);
+    }
+
+    try {
+      await fetch(`${API_URL}/users/${id}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.warn("Failed to sync deleted user account to server", err);
     }
   };
 
