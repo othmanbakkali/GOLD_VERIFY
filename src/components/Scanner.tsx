@@ -32,8 +32,16 @@ export const Scanner: React.FC = () => {
   // Selected Detail Modal
   const [selectedPunch, setSelectedPunch] = useState<Punch | null>(null);
 
-  // File Upload Ref
+  // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCameraClick = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
 
   // Stop camera feed when component unmounts
   useEffect(() => {
@@ -277,13 +285,16 @@ export const Scanner: React.FC = () => {
           </>
         ) : (
           <>
-            <button className="btn btn-emerald" onClick={startCamera} style={{ flexGrow: 1 }}>
+            <button className="btn btn-emerald" onClick={handleCameraClick} style={{ flexGrow: 1 }}>
               <Camera size={16} />
               <span>Caméra</span>
             </button>
+            <button className="btn btn-secondary" onClick={startCamera} title="Ouvrir le scanner en direct">
+              <span>Scan Direct</span>
+            </button>
             <button className="btn btn-secondary" onClick={handleUploadClick}>
               <Upload size={16} />
-              <span>Téléverser</span>
+              <span>Galerie</span>
             </button>
           </>
         )}
@@ -295,6 +306,16 @@ export const Scanner: React.FC = () => {
         ref={fileInputRef} 
         onChange={handleFileChange} 
         accept="image/*" 
+        style={{ display: 'none' }} 
+      />
+
+      {/* Hidden camera input for direct native phone camera capture */}
+      <input 
+        type="file" 
+        ref={cameraInputRef} 
+        onChange={handleFileChange} 
+        accept="image/*" 
+        capture="environment"
         style={{ display: 'none' }} 
       />
 
