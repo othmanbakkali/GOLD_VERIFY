@@ -1,0 +1,19 @@
+{
+  "short_name": "Poinçons Garantie",
+  "name": "Gestion des Poinçons de Garantie Maroc",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#080B11",
+  "background_color": "#080B11",
+  "orientation": "portrait",
+  "description": "Application PWA d'identification et de gestion des poinçons officiels de garantie douanière pour métaux précieux du Royaume du Maroc.",
+  "categories": ["business", "utilities"],
+  "lang": "fr-FR"
+}
