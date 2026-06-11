@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import type { Punch } from '../types';
-import { simulateDetection } from '../utils/hallmarkDetector';
+import { simulateDetection, estimateSharpness } from '../utils/hallmarkDetector';
 import type { DetectionResult } from '../utils/hallmarkDetector';
 import { PunchVector } from './PunchVector';
 import { PunchDetails } from './PunchDetails';
@@ -27,6 +27,7 @@ export const Scanner: React.FC = () => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
+  const [isBlurry, setIsBlurry] = useState(false);
   
   // Selected Detail Modal
   const [selectedPunch, setSelectedPunch] = useState<Punch | null>(null);
@@ -89,7 +90,7 @@ export const Scanner: React.FC = () => {
         const dataUrl = canvas.toDataURL('image/jpeg');
         setImageSrc(dataUrl);
         stopCamera();
-        runAnalysis('photo_capture.jpg');
+        runAnalysis('photo_capture.jpg', dataUrl);
       }
     }
   };
@@ -107,20 +108,31 @@ export const Scanner: React.FC = () => {
     if (file) {
       const reader = new FileReader();
       reader.onload = () => {
-        setImageSrc(reader.result as string);
+        const resultUrl = reader.result as string;
+        setImageSrc(resultUrl);
         stopCamera();
-        runAnalysis(file.name);
+        runAnalysis(file.name, resultUrl);
       };
       reader.readAsDataURL(file);
     }
   };
 
   // Run AI analysis
-  const runAnalysis = async (fileName: string) => {
+  const runAnalysis = async (fileName: string, imgSrc: string) => {
     setIsScanning(true);
     setDetectionResult(null);
+    setIsBlurry(false);
     
     try {
+      const sharpness = await estimateSharpness(imgSrc, fileName);
+      console.log(`Image sharpness score: ${sharpness}`);
+      
+      if (sharpness < 25) {
+        setIsBlurry(true);
+        setIsScanning(false);
+        return;
+      }
+      
       const result = await simulateDetection(fileName, punches);
       setDetectionResult(result);
     } catch (err) {
@@ -134,7 +146,7 @@ export const Scanner: React.FC = () => {
   const selectDemo = (demoName: string) => {
     stopCamera();
     setImageSrc('demo'); // Mock status indicator
-    runAnalysis(demoName);
+    runAnalysis(demoName, 'demo');
   };
 
   const getMetalColor = (metalId: string) => {
@@ -299,18 +311,32 @@ export const Scanner: React.FC = () => {
           <h4 style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gold-primary)', marginBottom: '8px' }}>
             Simuler un scan (Démo hors ligne)
           </h4>
-          <div className="scanner-demo-thumbnails">
-            <div className="demo-thumb" onClick={() => selectDemo('poisson_platine_950.png')}>
+          <div className="scanner-demo-thumbnails" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
+            <div className="demo-thumb" onClick={() => selectDemo('poisson_platine_950.png')} title="Platine 950‰">
               <PunchVector name="poisson" style={{ color: '#4F46E5' }} />
             </div>
-            <div className="demo-thumb" onClick={() => selectDemo('tete_mulet_or_750.jpg')}>
+            <div className="demo-thumb" onClick={() => selectDemo('tete_mulet_or_750.jpg')} title="Or 750‰">
               <PunchVector name="mulet-3" style={{ color: 'var(--gold-primary)' }} />
             </div>
-            <div className="demo-thumb" onClick={() => selectDemo('tete_vache_argent_950.jpeg')}>
+            <div className="demo-thumb" onClick={() => selectDemo('tete_vache_argent_950.jpeg')} title="Argent 950‰">
               <PunchVector name="vache-1" style={{ color: '#CCCCCC' }} />
             </div>
-            <div className="demo-thumb" onClick={() => selectDemo('hibou_recence_hors_titre.png')}>
+            <div className="demo-thumb" onClick={() => selectDemo('hibou_recence_hors_titre.png')} title="Hors Titre">
               <PunchVector name="hibou" style={{ color: '#6B7280' }} />
+            </div>
+            {/* Blurry Demo Simulation */}
+            <div className="demo-thumb" onClick={() => selectDemo('poisson_flou_inutilisable.png')} title="Simuler image floue" style={{ position: 'relative' }}>
+              <PunchVector name="poisson" style={{ color: '#4F46E5', filter: 'blur(3px)', opacity: 0.6 }} />
+              <span style={{ 
+                position: 'absolute', 
+                fontSize: '0.55rem', 
+                background: '#EF4444', 
+                color: '#FFFFFF', 
+                padding: '1px 4px', 
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                bottom: '2px'
+              }}>FLOU</span>
             </div>
           </div>
         </div>
@@ -359,6 +385,42 @@ export const Scanner: React.FC = () => {
               onClick={() => {
                 setImageSrc(null);
                 setDetectionResult(null);
+                setIsBlurry(false);
+              }}
+            >
+              <RefreshCw size={14} />
+              <span>Réinitialiser</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Blurry Image Alert Panel */}
+      {isBlurry && !isScanning && !streamActive && (
+        <div className="glass-panel" style={{ borderColor: '#EF4444', background: 'rgba(239, 68, 68, 0.03)', marginTop: '15px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+            <AlertCircle size={20} style={{ color: '#EF4444', flexShrink: 0 }} />
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 800, color: '#FCA5A5' }}>Image Floue Détectée</h3>
+          </div>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+            La photo capturée est trop floue ou de qualité insuffisante pour identifier le poinçon avec précision. 
+            Veuillez reprendre l'image en veillant à stabiliser votre appareil et à faire la mise au point sur le marquage.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+            <button 
+              className="btn btn-primary" 
+              style={{ flexGrow: 1, background: 'linear-gradient(135deg, #EF4444, #B91C1C)', color: '#FFF', padding: '8px 12px', fontSize: '0.8rem', boxShadow: 'none' }}
+              onClick={startCamera}
+            >
+              <Camera size={14} />
+              <span>Reprendre la photo</span>
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              style={{ padding: '8px 12px', fontSize: '0.8rem' }}
+              onClick={() => {
+                setImageSrc(null);
+                setIsBlurry(false);
               }}
             >
               <RefreshCw size={14} />

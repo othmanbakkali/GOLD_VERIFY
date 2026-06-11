@@ -83,3 +83,74 @@ export function simulateDetection(
     }, 2500); // 2.5s simulation delay for visual feedback
   });
 }
+
+/**
+ * Calculates a basic sharpness score of an image base64 or source URL using HTML Canvas.
+ * Returns a value between 0 (very blurry) and 100 (extremely sharp).
+ */
+export function estimateSharpness(imageSrc: string, imageName: string = ''): Promise<number> {
+  return new Promise((resolve) => {
+    // If filename contains 'flou' or 'blur', force simulate a low sharpness score (blurry)
+    if (imageName.toLowerCase().includes('flou') || imageName.toLowerCase().includes('blur')) {
+      resolve(12);
+      return;
+    }
+
+    if (imageSrc === 'demo' || imageSrc.startsWith('data:image/svg+xml')) {
+      resolve(95);
+      return;
+    }
+
+    const img = new Image();
+    img.src = imageSrc;
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const width = 100;
+        const height = 100;
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(85);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+
+        let totalDiff = 0;
+        let count = 0;
+
+        for (let y = 1; y < height - 1; y += 2) {
+          for (let x = 1; x < width - 1; x += 2) {
+            const idx = (y * width + x) * 4;
+            const val = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+            
+            const rightIdx = (y * width + (x + 1)) * 4;
+            const downIdx = ((y + 1) * width + x) * 4;
+
+            const rightVal = 0.299 * data[rightIdx] + 0.587 * data[rightIdx + 1] + 0.114 * data[rightIdx + 2];
+            const downVal = 0.299 * data[downIdx] + 0.587 * data[downIdx + 1] + 0.114 * data[downIdx + 2];
+
+            totalDiff += Math.abs(val - rightVal) + Math.abs(val - downVal);
+            count += 2;
+          }
+        }
+
+        const avgDiff = totalDiff / count;
+        // Map average diff to sharpness percentage (avgDiff below 6.5 is usually blurry)
+        const sharpnessScore = Math.min(100, Math.max(5, Math.round(avgDiff * 7)));
+        resolve(sharpnessScore);
+      } catch (err) {
+        console.error("Error analyzing sharpness, defaulting to sharp:", err);
+        resolve(85);
+      }
+    };
+    img.onerror = () => {
+      resolve(85);
+    };
+  });
+}
+
