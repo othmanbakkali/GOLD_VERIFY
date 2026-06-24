@@ -390,12 +390,12 @@ export const Scanner: React.FC = () => {
           </>
         ) : (
           <>
-            <button className="btn btn-emerald" onClick={handleCameraClick} style={{ flexGrow: 1 }}>
+            <button className="btn btn-emerald" onClick={startCamera} style={{ flexGrow: 1 }} title="Ouvrir la caméra du téléphone directement dans l'application avec zoom automatique">
               <Camera size={16} />
               <span>Caméra</span>
             </button>
-            <button className="btn btn-secondary" onClick={startCamera} title="Ouvrir le scanner en direct">
-              <span>Scan Direct</span>
+            <button className="btn btn-secondary" onClick={handleCameraClick} title="Prendre une photo avec l'appareil photo système du téléphone">
+              <span>Photo Système</span>
             </button>
             <button className="btn btn-secondary" onClick={handleUploadClick}>
               <Upload size={16} />
