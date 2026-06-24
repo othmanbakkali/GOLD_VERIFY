@@ -22,6 +22,12 @@ export const Scanner: React.FC = () => {
   const [streamActive, setStreamActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+  
+  // Zoom state
+  const [zoomSupported, setZoomSupported] = useState(false);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number }>({ min: 1, max: 4 });
+  const [zoomValue, setZoomValue] = useState(1);
   
   // Scan state
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -35,6 +41,25 @@ export const Scanner: React.FC = () => {
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Zoom change handler
+  const handleZoomChange = async (value: number) => {
+    let targetZoom = value;
+    if (zoomSupported) {
+      // Clamp to supported hardware range
+      targetZoom = Math.max(zoomRange.min, Math.min(zoomRange.max, value));
+      if (trackRef.current) {
+        try {
+          await trackRef.current.applyConstraints({
+            advanced: [{ zoom: targetZoom } as any]
+          });
+        } catch (err) {
+          console.error("Failed to apply hardware zoom:", err);
+        }
+      }
+    }
+    setZoomValue(targetZoom);
+  };
 
   const handleCameraClick = () => {
     if (cameraInputRef.current) {
@@ -66,6 +91,37 @@ export const Scanner: React.FC = () => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setStreamActive(true);
+        
+        const track = stream.getVideoTracks()[0];
+        if (track) {
+          trackRef.current = track;
+          try {
+            const capabilities = track.getCapabilities() as any;
+            if (capabilities && capabilities.zoom) {
+              setZoomSupported(true);
+              const min = capabilities.zoom.min || 1;
+              const max = capabilities.zoom.max || 4;
+              setZoomRange({ min, max });
+              
+              // Automatically zoom to an optimized level for hallmarks (e.g., 2.5x)
+              const defaultZoom = Math.min(max, Math.max(min, 2.5));
+              setZoomValue(defaultZoom);
+              
+              await track.applyConstraints({
+                advanced: [{ zoom: defaultZoom } as any]
+              });
+              console.log(`Hardware zoom auto-configured to ${defaultZoom}x`);
+            } else {
+              setZoomSupported(false);
+              // Fallback to digital zoom default (2.5x)
+              setZoomValue(2.5);
+            }
+          } catch (capErr) {
+            console.warn("Could not read capabilities or apply hardware zoom:", capErr);
+            setZoomSupported(false);
+            setZoomValue(2.5); // Fallback default
+          }
+        }
       }
     } catch (err: any) {
       console.error('Camera access failed:', err);
@@ -83,18 +139,44 @@ export const Scanner: React.FC = () => {
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
+    trackRef.current = null;
     setStreamActive(false);
+    setZoomSupported(false);
+    setZoomValue(1);
   };
 
   // Capture snapshot from video
   const capturePhoto = () => {
     if (videoRef.current) {
       const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
+      const videoWidth = videoRef.current.videoWidth || 640;
+      const videoHeight = videoRef.current.videoHeight || 480;
+      canvas.width = videoWidth;
+      canvas.height = videoHeight;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        if (zoomSupported) {
+          // Hardware zoom is already active, so the video stream is already zoomed
+          ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        } else {
+          // Digital/CSS zoom fallback: crop the center of the video frame
+          const z = zoomValue;
+          const sWidth = videoWidth / z;
+          const sHeight = videoHeight / z;
+          const sx = (videoWidth - sWidth) / 2;
+          const sy = (videoHeight - sHeight) / 2;
+          ctx.drawImage(
+            videoRef.current,
+            sx,
+            sy,
+            sWidth,
+            sHeight,
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          );
+        }
         const dataUrl = canvas.toDataURL('image/jpeg');
         setImageSrc(dataUrl);
         stopCamera();
@@ -181,7 +263,15 @@ export const Scanner: React.FC = () => {
         {/* Live Video Feed */}
         {streamActive && (
           <>
-            <video ref={videoRef} autoPlay playsInline className="scanner-video" />
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              className="scanner-video" 
+              style={{
+                transform: !zoomSupported && zoomValue > 1 ? `scale(${zoomValue})` : 'none'
+              }}
+            />
             <div className="scanner-laser" />
             <div className="scanner-overlay-grid">
               <div className="scanner-target-box">
@@ -190,6 +280,21 @@ export const Scanner: React.FC = () => {
                 <div className="scanner-corner corner-bl" />
                 <div className="scanner-corner corner-br" />
               </div>
+            </div>
+            
+            {/* Zoom Controls Overlay */}
+            <div className="zoom-controls">
+              {[1, 2, 3, 4].map((z) => (
+                <button
+                  key={z}
+                  type="button"
+                  className={`zoom-btn ${zoomValue === z ? 'active' : ''}`}
+                  onClick={() => handleZoomChange(z)}
+                  title={`Zoom ${z}x`}
+                >
+                  {z}x
+                </button>
+              ))}
             </div>
           </>
         )}
