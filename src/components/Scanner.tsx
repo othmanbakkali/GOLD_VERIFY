@@ -38,6 +38,10 @@ export const Scanner: React.FC = () => {
   // Selected Detail Modal
   const [selectedPunch, setSelectedPunch] = useState<Punch | null>(null);
 
+  // Correction Modal state
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
+  const [correctionSearchQuery, setCorrectionSearchQuery] = useState('');
+
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -509,6 +513,17 @@ export const Scanner: React.FC = () => {
               className="btn btn-secondary" 
               style={{ padding: '8px 12px', fontSize: '0.8rem' }}
               onClick={() => {
+                setCorrectionSearchQuery('');
+                setShowCorrectionModal(true);
+              }}
+              title="Corriger manuellement le poinçon détecté"
+            >
+              <span>Corriger</span>
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              style={{ padding: '8px 12px', fontSize: '0.8rem' }}
+              onClick={() => {
                 setImageSrc(null);
                 setDetectionResult(null);
                 setIsBlurry(false);
@@ -565,6 +580,111 @@ export const Scanner: React.FC = () => {
           titres={titres}
           onClose={() => setSelectedPunch(null)}
         />
+      )}
+
+      {/* Correction Selection Modal */}
+      {showCorrectionModal && (
+        <div className="modal-overlay" onClick={() => setShowCorrectionModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <button className="modal-close-btn" onClick={() => setShowCorrectionModal(false)}>✕</button>
+            
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)' }}>
+              Corriger le Poinçon
+            </h3>
+            
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '15px' }}>
+              Sélectionnez manuellement le bon poinçon dans le registre pour corriger le résultat de la simulation.
+            </p>
+            
+            {/* Search Input */}
+            <div className="search-wrapper" style={{ marginBottom: '15px' }}>
+              <input
+                type="text"
+                placeholder="Rechercher par nom, référence ou métal..."
+                value={correctionSearchQuery}
+                onChange={(e) => setCorrectionSearchQuery(e.target.value)}
+                className="input-field search-input"
+                style={{ fontSize: '0.85rem', paddingLeft: '15px' }}
+                autoFocus
+              />
+            </div>
+            
+            {/* Grid of Punches */}
+            <div className="correction-grid" style={{ maxHeight: '320px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', paddingRight: '4px' }}>
+              {punches
+                .filter(p => p.actif)
+                .filter(p => {
+                  const query = correctionSearchQuery.toLowerCase().trim();
+                  if (!query) return true;
+                  const metalName = metals.find(m => m.id === p.metalId)?.nom.toLowerCase() || '';
+                  const catName = categories.find(c => c.id === p.categorieId)?.nom.toLowerCase() || '';
+                  return p.nom.toLowerCase().includes(query) || 
+                         p.reference.toLowerCase().includes(query) ||
+                         metalName.includes(query) ||
+                         catName.includes(query);
+                })
+                .map(p => {
+                  const metal = metals.find(m => m.id === p.metalId);
+                  const category = categories.find(c => c.id === p.categorieId);
+                  return (
+                    <div 
+                      key={p.id} 
+                      className="correction-item" 
+                      onClick={() => {
+                        setDetectionResult({
+                          punch: p,
+                          confidence: 100, // Manual corrections are 100% correct
+                          bbox: detectionResult ? detectionResult.bbox : { x: 50, y: 50, width: 120, height: 120 }
+                        });
+                        setShowCorrectionModal(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-glass)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      <div style={{ width: '42px', height: '42px', background: '#0B0F19', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-glass)', flexShrink: 0 }}>
+                        <PunchVector name={p.image} style={{ width: '28px', height: '28px', color: getMetalColor(p.metalId) }} />
+                      </div>
+                      
+                      <div style={{ flexGrow: 1, minWidth: 0 }}>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nom}</h4>
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', margin: '2px 0 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Ref: {p.reference} • {metal?.nom} • {category?.nom}
+                        </p>
+                      </div>
+                      
+                      <span className="badge" style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(255, 255, 255, 0.03)', color: getMetalColor(p.metalId), borderColor: 'rgba(255, 255, 255, 0.1)', flexShrink: 0 }}>
+                        {metal?.nom}
+                      </span>
+                    </div>
+                  );
+                })}
+                
+              {punches.filter(p => p.actif).filter(p => {
+                const query = correctionSearchQuery.toLowerCase().trim();
+                if (!query) return true;
+                const metalName = metals.find(m => m.id === p.metalId)?.nom.toLowerCase() || '';
+                const catName = categories.find(c => c.id === p.categorieId)?.nom.toLowerCase() || '';
+                return p.nom.toLowerCase().includes(query) || 
+                       p.reference.toLowerCase().includes(query) ||
+                       metalName.includes(query) ||
+                       catName.includes(query);
+              }).length === 0 && (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '20px' }}>
+                  Aucun poinçon trouvé pour cette recherche.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
