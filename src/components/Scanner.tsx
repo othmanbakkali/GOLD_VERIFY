@@ -235,9 +235,10 @@ export const Scanner: React.FC = () => {
       const sharpness = await estimateSharpness(imgSrc, fileName);
       console.log(`Image sharpness score: ${sharpness}`);
       
-      if (sharpness < 25) {
+      if (sharpness < 45) { // Stricter threshold to prevent false positives on blurry images
         setIsBlurry(true);
         setIsScanning(false);
+        setDetectionResult(null);
         return;
       }
       
