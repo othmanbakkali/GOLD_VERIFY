@@ -66,30 +66,25 @@ export function simulateDetection(
         matchedPunch = punches.find(p => p.id === 'p-vase');
       }
 
-      // If no match by filename, pick deterministically based on image content
+      // If no match by filename, pick the first active one deterministically
       if (!matchedPunch) {
         const activePunches = punches.filter(p => p.actif);
         if (activePunches.length === 0) {
           reject(new Error('Aucun poinçon actif trouvé dans la base de données.'));
           return;
         }
-        
-        // Base the selection strictly on the image content string so the same image gives the same result
-        const baseHash = simpleHash(imageSrc || imageName);
-        const randomIndex = baseHash % activePunches.length;
-        matchedPunch = activePunches[randomIndex];
+        // Always return the first active punch for consistent testing behavior
+        matchedPunch = activePunches[0];
       }
 
-      const baseHashStr = imageSrc || imageName;
-      // Generate realistic deterministic bounding box coordinates
-      const x = 50 + (simpleHash(baseHashStr + "x") % 40);
-      const y = 50 + (simpleHash(baseHashStr + "y") % 40);
-      const width = 120 + (simpleHash(baseHashStr + "w") % 40);
-      const height = 120 + (simpleHash(baseHashStr + "h") % 40);
+      // Generate realistic but fixed bounding box coordinates
+      const x = 75;
+      const y = 80;
+      const width = 110;
+      const height = 115;
 
-      // Generate a realistic deterministic confidence score between 78.00% and 99.00%
-      const confHash = simpleHash(baseHashStr + "conf") % 2100;
-      const confidence = parseFloat((78 + (confHash / 100)).toFixed(2));
+      // Fixed high-confidence score
+      const confidence = 94.55;
 
       resolve({
         punch: matchedPunch,
