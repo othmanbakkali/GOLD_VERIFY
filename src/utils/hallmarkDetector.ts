@@ -13,21 +13,9 @@ export interface DetectionResult {
  */
 export function simulateDetection(
   imageName: string,
-  imageSrc: string,
   punches: Punch[]
 ): Promise<DetectionResult> {
   return new Promise((resolve, reject) => {
-    // Simple hash function for deterministic results
-    const simpleHash = (str: string) => {
-      let hash = 0;
-      for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
-      }
-      return Math.abs(hash);
-    };
-
     // Simulate API delay
     setTimeout(() => {
       const lowerName = imageName.toLowerCase();
