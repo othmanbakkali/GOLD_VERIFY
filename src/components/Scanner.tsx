@@ -101,6 +101,11 @@ export const Scanner: React.FC = () => {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn("Auto-play prevented:", playErr);
+        }
         setStreamActive(true);
         
         const track = stream.getVideoTracks()[0];
@@ -273,18 +278,21 @@ export const Scanner: React.FC = () => {
 
       {/* Main Viewport Container */}
       <div className="scanner-viewport">
-        {/* Live Video Feed */}
+        {/* Live Video Feed - always mounted to keep ref active, hidden via CSS when inactive */}
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          playsInline 
+          muted
+          className="scanner-video" 
+          style={{
+            display: streamActive ? 'block' : 'none',
+            transform: !zoomSupported && zoomValue > 1 ? `scale(${zoomValue})` : 'none'
+          }}
+        />
+
         {streamActive && (
           <>
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              className="scanner-video" 
-              style={{
-                transform: !zoomSupported && zoomValue > 1 ? `scale(${zoomValue})` : 'none'
-              }}
-            />
             <div className="scanner-laser" />
             <div className="scanner-overlay-grid">
               <div className="scanner-target-box">
