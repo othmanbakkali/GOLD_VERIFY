@@ -242,7 +242,7 @@ export const Scanner: React.FC = () => {
         return;
       }
       
-      const result = await simulateDetection(fileName, punches);
+      const result = await simulateDetection(fileName, imgSrc, punches);
       setDetectionResult(result);
     } catch (err) {
       console.error(err);

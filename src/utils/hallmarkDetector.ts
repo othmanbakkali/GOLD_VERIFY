@@ -13,9 +13,21 @@ export interface DetectionResult {
  */
 export function simulateDetection(
   imageName: string,
+  imageSrc: string,
   punches: Punch[]
 ): Promise<DetectionResult> {
   return new Promise((resolve, reject) => {
+    // Simple hash function for deterministic results
+    const simpleHash = (str: string) => {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return Math.abs(hash);
+    };
+
     // Simulate API delay
     setTimeout(() => {
       const lowerName = imageName.toLowerCase();
@@ -31,7 +43,6 @@ export function simulateDetection(
       } else if (lowerName.includes('mulet 3') || lowerName.includes('mulet-3') || lowerName.includes('fig4')) {
         matchedPunch = punches.find(p => p.id === 'p-mulet-3');
       } else if (lowerName.includes('mulet') || lowerName.includes('mule')) {
-        // Default to a random mulet
         matchedPunch = punches.find(p => p.id === 'p-mulet-3');
       } else if (lowerName.includes('gazelle') || lowerName.includes('fig5')) {
         matchedPunch = punches.find(p => p.id === 'p-gazelle');
@@ -55,32 +66,37 @@ export function simulateDetection(
         matchedPunch = punches.find(p => p.id === 'p-vase');
       }
 
-      // If no match by filename, pick a random active one to simulate a successful detection
+      // If no match by filename, pick deterministically based on image content
       if (!matchedPunch) {
         const activePunches = punches.filter(p => p.actif);
         if (activePunches.length === 0) {
           reject(new Error('Aucun poinçon actif trouvé dans la base de données.'));
           return;
         }
-        const randomIndex = Math.floor(Math.random() * activePunches.length);
+        
+        // Base the selection strictly on the image content string so the same image gives the same result
+        const baseHash = simpleHash(imageSrc || imageName);
+        const randomIndex = baseHash % activePunches.length;
         matchedPunch = activePunches[randomIndex];
       }
 
-      // Generate realistic bounding box coordinates (centered on a standard 300x300 canvas coordinates)
-      const x = 50 + Math.floor(Math.random() * 40);
-      const y = 50 + Math.floor(Math.random() * 40);
-      const width = 120 + Math.floor(Math.random() * 40);
-      const height = 120 + Math.floor(Math.random() * 40);
+      const baseHashStr = imageSrc || imageName;
+      // Generate realistic deterministic bounding box coordinates
+      const x = 50 + (simpleHash(baseHashStr + "x") % 40);
+      const y = 50 + (simpleHash(baseHashStr + "y") % 40);
+      const width = 120 + (simpleHash(baseHashStr + "w") % 40);
+      const height = 120 + (simpleHash(baseHashStr + "h") % 40);
 
-      // Generate a realistic confidence score between 78% and 99%
-      const confidence = parseFloat((78 + Math.random() * 21).toFixed(2));
+      // Generate a realistic deterministic confidence score between 78.00% and 99.00%
+      const confHash = simpleHash(baseHashStr + "conf") % 2100;
+      const confidence = parseFloat((78 + (confHash / 100)).toFixed(2));
 
       resolve({
         punch: matchedPunch,
         confidence,
         bbox: { x, y, width, height }
       });
-    }, 2500); // 2.5s simulation delay for visual feedback
+    }, 1500); // 1.5s simulation delay for visual feedback
   });
 }
 
