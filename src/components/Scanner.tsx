@@ -12,7 +12,9 @@ import {
   AlertCircle, 
   CheckCircle,
   Eye,
-  Info
+  Info,
+  ThumbsUp,
+  ThumbsDown
 } from 'lucide-react';
 
 export const Scanner: React.FC = () => {
@@ -41,6 +43,9 @@ export const Scanner: React.FC = () => {
   // Correction Modal state
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
   const [correctionSearchQuery, setCorrectionSearchQuery] = useState('');
+  
+  // Feedback state
+  const [isConfirmed, setIsConfirmed] = useState(false);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -230,6 +235,8 @@ export const Scanner: React.FC = () => {
     setIsScanning(true);
     setDetectionResult(null);
     setIsBlurry(false);
+    setIsConfirmed(false);
+    setCameraError(null);
     
     try {
       const sharpness = await estimateSharpness(imgSrc, fileName);
@@ -244,6 +251,7 @@ export const Scanner: React.FC = () => {
       
       const result = await simulateDetection(fileName, punches);
       setDetectionResult(result);
+      setIsConfirmed(false);
     } catch (err) {
       console.error(err);
     } finally {
@@ -518,38 +526,69 @@ export const Scanner: React.FC = () => {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-            <button 
-              className="btn btn-emerald" 
-              style={{ flexGrow: 1, padding: '8px 12px', fontSize: '0.8rem' }}
-              onClick={() => setSelectedPunch(detectionResult.punch)}
-            >
-              <Eye size={14} />
-              <span>Consulter la fiche</span>
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              style={{ padding: '8px 12px', fontSize: '0.8rem' }}
-              onClick={() => {
-                setCorrectionSearchQuery('');
-                setShowCorrectionModal(true);
-              }}
-              title="Corriger manuellement le poinçon détecté"
-            >
-              <span>Corriger</span>
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              style={{ padding: '8px 12px', fontSize: '0.8rem' }}
-              onClick={() => {
-                setImageSrc(null);
-                setDetectionResult(null);
-                setIsBlurry(false);
-              }}
-            >
-              <RefreshCw size={14} />
-              <span>Réinitialiser</span>
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+            {/* Primary actions */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                className="btn btn-emerald" 
+                style={{ flexGrow: 1, padding: '8px 12px', fontSize: '0.8rem' }}
+                onClick={() => setSelectedPunch(detectionResult.punch)}
+              >
+                <Eye size={14} />
+                <span>Consulter la fiche</span>
+              </button>
+              
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '8px 12px', fontSize: '0.8rem' }}
+                onClick={() => {
+                  setImageSrc(null);
+                  setDetectionResult(null);
+                  setIsBlurry(false);
+                  setIsConfirmed(false);
+                }}
+              >
+                <RefreshCw size={14} />
+                <span>Réinitialiser</span>
+              </button>
+            </div>
+            
+            {/* Feedback actions */}
+            <div style={{ display: 'flex', gap: '10px', padding: '10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '8px', border: '1px solid var(--border-glass)' }}>
+              {!isConfirmed ? (
+                <>
+                  <button 
+                    className="btn btn-primary" 
+                    style={{ flexGrow: 1, padding: '8px', fontSize: '0.75rem', background: 'var(--gold-primary)', color: '#000' }}
+                    onClick={() => {
+                      setIsConfirmed(true);
+                      console.log("Feedback: Result marked as correct by user.");
+                    }}
+                    title="Confirmer ce résultat pour améliorer l'Intelligence Artificielle"
+                  >
+                    <ThumbsUp size={14} />
+                    <span>Exact</span>
+                  </button>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ flexGrow: 1, padding: '8px', fontSize: '0.75rem' }}
+                    onClick={() => {
+                      setCorrectionSearchQuery('');
+                      setShowCorrectionModal(true);
+                    }}
+                    title="Corriger manuellement le poinçon détecté"
+                  >
+                    <ThumbsDown size={14} />
+                    <span>Inexact (Corriger)</span>
+                  </button>
+                </>
+              ) : (
+                <div style={{ width: '100%', padding: '8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--emerald-light)', textAlign: 'center' }}>
+                  <CheckCircle size={16} />
+                  <span>Merci ! Ce retour aide à améliorer notre IA.</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
