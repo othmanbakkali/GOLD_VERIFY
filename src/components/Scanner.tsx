@@ -88,10 +88,17 @@ export const Scanner: React.FC = () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error("L'API de la caméra n'est pas disponible (requiert HTTPS).");
       }
-      const constraints = {
-        video: { facingMode: 'environment' } // Prefer back camera on mobiles
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      let stream;
+      try {
+        // Try to get the back camera specifically
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      } catch (err) {
+        console.warn("Back camera not found or overconstrained, falling back to any camera...");
+        // Fallback to any available camera
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         setStreamActive(true);
@@ -130,9 +137,11 @@ export const Scanner: React.FC = () => {
     } catch (err: any) {
       console.error('Camera access failed:', err);
       if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        alert("Erreur: L'appareil photo nécessite une connexion HTTPS sécurisée.");
         setCameraError("L'appareil photo nécessite une connexion HTTPS sécurisée (actuellement en HTTP). Veuillez tester sur la version publiée en ligne (GitHub Pages) ou utiliser le bouton 'Téléverser' pour prendre une photo.");
       } else {
-        setCameraError("Impossible d'accéder à l'appareil photo. Assurez-vous d'avoir autorisé l'accès dans les paramètres du navigateur ou utilisez le bouton 'Téléverser' pour prendre une photo directement.");
+        alert("Erreur: Impossible d'accéder à l'appareil photo. Vérifiez les permissions de votre navigateur.");
+        setCameraError("Impossible d'accéder à l'appareil photo. Assurez-vous d'avoir autorisé l'accès dans les paramètres du navigateur ou utilisez le bouton 'Photo Système' pour prendre une photo directement.");
       }
     }
   };
