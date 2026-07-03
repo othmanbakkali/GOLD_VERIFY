@@ -107,23 +107,23 @@ export const Scanner: React.FC = () => {
               const max = capabilities.zoom.max || 4;
               setZoomRange({ min, max });
               
-              // Automatically zoom to an optimized level for hallmarks (e.g., 2.5x)
-              const defaultZoom = Math.min(max, Math.max(min, 2.5));
+              // Automatically zoom to maximum to see hallmarks clearly
+              const defaultZoom = max;
               setZoomValue(defaultZoom);
               
               await track.applyConstraints({
                 advanced: [{ zoom: defaultZoom } as any]
               });
-              console.log(`Hardware zoom auto-configured to ${defaultZoom}x`);
+              console.log(`Hardware zoom auto-configured to max (${defaultZoom}x)`);
             } else {
               setZoomSupported(false);
-              // Fallback to digital zoom default (2.5x)
-              setZoomValue(2.5);
+              // Fallback to digital zoom maximum
+              setZoomValue(4);
             }
           } catch (capErr) {
             console.warn("Could not read capabilities or apply hardware zoom:", capErr);
             setZoomSupported(false);
-            setZoomValue(2.5); // Fallback default
+            setZoomValue(4); // Fallback default max
           }
         }
       }
